@@ -634,6 +634,30 @@ function noteBlocks(opts) {
   return blocks;
 }
 
+// 중첩 블록까지 센 개수 (요청당 100블록 한도 계산용)
+function countBlocksDeep(blocks) {
+  let total = 0;
+  (blocks || []).forEach(function (block) {
+    total += 1;
+    const body = block && block[block.type];
+    if (body && Array.isArray(body.children)) total += countBlocksDeep(body.children);
+  });
+  return total;
+}
+
+// 한 요청에 넣을 수 있는 블록 수(중첩 포함 100)에 맞춰 앞에서부터 잘라 낸다
+function takeBlockBatch(blocks, limit) {
+  const batch = [];
+  let total = 0;
+  for (let i = 0; i < blocks.length; i++) {
+    const deep = countBlocksDeep([blocks[i]]);
+    if (total + deep > limit) break;
+    total += deep;
+    batch.push(blocks[i]);
+  }
+  return batch;
+}
+
 async function appendBlocks(pageId, blocks) {
   const queue = blocks.slice();
   while (queue.length) {
@@ -704,6 +728,8 @@ module.exports = {
   imageBlock,
   bookmarkBlock,
   noteBlocks,
+  countBlocksDeep,
+  takeBlockBatch,
   metaBlocks,
   photoBlocks,
   isMetaBlock,

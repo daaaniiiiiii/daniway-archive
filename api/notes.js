@@ -183,7 +183,7 @@ async function create(req, res) {
   const properties = Object.assign({}, built.properties);
   properties['사진수'] = { number: specs.length };
 
-  const firstBatch = blocks.slice(0, 100);
+  const firstBatch = lib.takeBlockBatch(blocks, 100);
 
   const requestPage = function (children) {
     return lib.notionRequest('/pages', {
@@ -208,7 +208,7 @@ async function create(req, res) {
       specs = uploadSpecs;
       blocks = buildBatch(specs);
       properties['사진수'] = { number: specs.length };
-      const retryBatch = blocks.slice(0, 100);
+      const retryBatch = lib.takeBlockBatch(blocks, 100);
       page = await requestPage(retryBatch);
       createdCount = retryBatch.length;
     } else {
