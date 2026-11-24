@@ -499,12 +499,12 @@ function zeros(){ var o={}; for(var i=0;i<ADJ_KEYS.length;i++) o[ADJ_KEYS[i]]=0;
 /* ---------- preset looks (reference: presets.json) ---------- */
 var LOOK = {
   sunlit: {
-    wb:[1.045,1.005,0.968], exposure:0.995,
+    wb:[1.024,1.006,0.978], exposure:0.995,
     curve:[[0,0.034],[0.22,0.268],[0.5,0.545],[0.78,0.792],[1,0.976]],
-    hi:[0.030,0.016,-0.004], sh:[0.004,0.004,0.010],
-    saturation:1.075, vibrance:0.12, hueSat:[],
-    glow:{thr:0.84, ratio:0.014, tint:[1.00,0.93,0.82]},
-    halation:{thr:0.90, ratio:0.026, strength:0.07, tint:[1.00,0.62,0.46]},
+    hi:[0.016,0.015,0.002], sh:[0.004,0.004,0.010],
+    saturation:1.042, vibrance:0.10, hueSat:[],
+    glow:{thr:0.84, ratio:0.014, tint:[1.00,0.988,0.945]},
+    halation:null,
     vignette:0.0
   },
   warm: {
