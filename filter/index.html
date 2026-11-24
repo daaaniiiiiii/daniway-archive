@@ -10,7 +10,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="DANI WAY FILTER">
-<meta name="description" content="다니웨이 블로그 사진 보정 — 네 가지 필름 프리셋, 질감, 상세 조절">
+<meta name="description" content="다니웨이 블로그 사진 보정 — 다섯 가지 프리셋, 질감, 상세 조절">
 <meta name="robots" content="noindex, nofollow">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1">
@@ -212,7 +212,7 @@ button{font:inherit;color:inherit;background:none;border:0;margin:0;padding:0;cu
 }
 .presets::-webkit-scrollbar{display:none}
 .chip{
-  flex:0 0 auto;width:64px;
+  flex:0 0 auto;width:auto;min-width:64px;padding:0 3px;
   display:flex;flex-direction:column;align-items:center;gap:0;
   text-align:center;
 }
@@ -499,43 +499,53 @@ function zeros(){ var o={}; for(var i=0;i<ADJ_KEYS.length;i++) o[ADJ_KEYS[i]]=0;
 /* ---------- preset looks (reference: presets.json) ---------- */
 var LOOK = {
   sunlit: {
-    wb:[1.024,1.006,0.978], exposure:0.995,
-    curve:[[0,0.034],[0.22,0.268],[0.5,0.545],[0.78,0.792],[1,0.976]],
-    hi:[0.016,0.015,0.002], sh:[0.004,0.004,0.010],
-    saturation:1.042, vibrance:0.10, hueSat:[],
-    glow:{thr:0.84, ratio:0.014, tint:[1.00,0.988,0.945]},
+    wb:[1.008,1.004,0.992], exposure:1.000,
+    curve:[[0,0.032],[0.22,0.262],[0.5,0.540],[0.78,0.794],[1,0.978]],
+    hi:[0.010,0.009,0.004], sh:[0.002,0.003,0.008],
+    saturation:1.032, vibrance:0.10, hueSat:[[330,30,-0.04]],
+    glow:{thr:0.86, ratio:0.013, tint:[1.00,0.992,0.965]},
     halation:null,
     vignette:0.0
   },
   warm: {
-    wb:[1.048,1.010,0.958], exposure:1.075,
-    curve:[[0,0.026],[0.22,0.282],[0.5,0.562],[0.78,0.812],[1,0.990]],
-    hi:[0.030,0.017,-0.006], sh:[0.008,0.004,0.000],
-    saturation:1.045, vibrance:0.16,
-    hueSat:[[45,55,0.14],[20,40,0.03],[0,30,0.08],[210,70,-0.32],[170,45,-0.20]],
-    glow:{thr:0.80, ratio:0.012, tint:[1.00,0.90,0.74]},
-    halation:{thr:0.90, ratio:0.022, strength:0.07, tint:[1.00,0.58,0.40]},
-    vignette:0.05
+    wb:[1.026,1.006,0.972], exposure:1.045,
+    curve:[[0,0.028],[0.22,0.272],[0.5,0.552],[0.78,0.806],[1,0.988]],
+    hi:[0.018,0.012,-0.002], sh:[0.004,0.003,0.004],
+    saturation:1.040, vibrance:0.16,
+    hueSat:[[45,55,0.10],[20,40,0.02],[210,70,-0.18],[170,45,-0.10]],
+    glow:{thr:0.84, ratio:0.012, tint:[1.00,0.93,0.82]},
+    halation:null,
+    vignette:0.03
   },
   clean: {
-    wb:[0.999,1.004,1.008], exposure:1.09, neutralize:0.5,
-    curve:[[0,0.008],[0.22,0.232],[0.5,0.528],[0.78,0.812],[1,1.000]],
-    hi:[0.008,0.005,0.001], sh:[0.000,0.002,0.004],
-    saturation:1.03, vibrance:0.16,
-    hueSat:[[210,60,0.06],[95,55,0.08]],
+    wb:[1.004,1.004,1.004], exposure:1.055, neutralize:0.32,
+    curve:[[0,0.014],[0.22,0.238],[0.5,0.532],[0.78,0.812],[1,0.998]],
+    hi:[0.010,0.009,0.006], sh:[0.000,0.002,0.005],
+    saturation:1.02, vibrance:0.14,
+    hueSat:[[210,60,0.04],[95,55,0.07]],
     glow:{thr:0.92, ratio:0.016, tint:[1,1,1]},
     halation:null,
     vignette:0.0
   },
   vintage: {
-    wb:[1.035,1.000,0.965], exposure:1.02,
-    curve:[[0,0.066],[0.20,0.250],[0.50,0.534],[0.80,0.834],[1,0.966]],
-    hi:[0.048,0.026,-0.014], sh:[-0.008,0.004,0.020],
-    saturation:0.92, vibrance:0.04,
-    hueSat:[[200,60,-0.12]],
-    glow:{thr:0.78, ratio:0.020, tint:[1.00,0.92,0.80]},
-    halation:{thr:0.82, ratio:0.038, strength:0.14, tint:[1.00,0.55,0.38]},
-    vignette:0.085
+    wb:[1.016,1.000,0.984], exposure:1.015,
+    curve:[[0,0.052],[0.20,0.248],[0.50,0.532],[0.80,0.826],[1,0.972]],
+    hi:[0.024,0.016,-0.004], sh:[-0.008,0.002,0.014],
+    saturation:0.955, vibrance:0.05,
+    hueSat:[[200,60,-0.04],[45,50,0.04]],
+    glow:{thr:0.82, ratio:0.018, tint:[1.00,0.955,0.885]},
+    halation:{thr:0.90, ratio:0.034, strength:0.07, tint:[1.00,0.68,0.52]},
+    vignette:0.05
+  },
+  oldiphone: {
+    wb:[0.997,1.002,1.009], exposure:1.008,
+    curve:[[0,0.062],[0.20,0.252],[0.50,0.518],[0.78,0.780],[1,0.955]],
+    hi:[0.012,0.012,0.008], sh:[0.000,0.004,0.006],
+    saturation:0.900, vibrance:0.08,
+    hueSat:[[90,60,-0.04],[210,70,-0.03]],
+    glow:{thr:0.88, ratio:0.010, tint:[1.00,0.997,0.985]},
+    halation:null,
+    vignette:0.03
   }
 };
 
@@ -543,13 +553,15 @@ var PRESETS = [
   { key:'original', no:'00', kr:'원본', en:'Original', look:null,
     base:{ brightness:0, highlights:0, shadows:0, contrast:0, warmth:0, saturation:0, grain:0, glow:0, clarity:0 } },
   { key:'sunlit', no:'01', kr:'일상·빛', en:'Sunlit Daily', look:LOOK.sunlit,
-    base:{ brightness:0, highlights:-3, shadows:4, contrast:-2, warmth:2, saturation:1, grain:22, glow:38, clarity:-12 } },
+    base:{ brightness:0, highlights:-4, shadows:5, contrast:-3, warmth:1, saturation:1, grain:20, glow:34, clarity:-10 } },
   { key:'warm', no:'02', kr:'요리·카페', en:'Warm Table', look:LOOK.warm,
-    base:{ brightness:2, highlights:-2, shadows:3, contrast:1, warmth:3, saturation:2, grain:18, glow:29, clarity:22 } },
+    base:{ brightness:1, highlights:-3, shadows:4, contrast:0, warmth:2, saturation:2, grain:16, glow:24, clarity:18 } },
   { key:'clean', no:'03', kr:'인테리어', en:'Clean Space', look:LOOK.clean,
-    base:{ brightness:2, highlights:-4, shadows:1, contrast:2, warmth:-1, saturation:0, grain:9, glow:10, clarity:30 } },
+    base:{ brightness:2, highlights:-5, shadows:2, contrast:1, warmth:1, saturation:0, grain:8, glow:8, clarity:22 } },
   { key:'vintage', no:'04', kr:'여행·야외', en:'Vintage Classic', look:LOOK.vintage,
-    base:{ brightness:0, highlights:-5, shadows:5, contrast:-2, warmth:3, saturation:-3, grain:55, glow:36, clarity:-15 } }
+    base:{ brightness:0, highlights:-6, shadows:6, contrast:-3, warmth:1, saturation:-2, grain:44, glow:30, clarity:-8 } },
+  { key:'oldiphone', no:'05', kr:'구버전 아이폰', en:'Old iPhone', look:LOOK.oldiphone,
+    base:{ brightness:0, highlights:-8, shadows:3, contrast:-4, warmth:0, saturation:-1, grain:44, glow:14, clarity:-8 } }
 ];
 
 function presetOf(key){
@@ -1056,6 +1068,7 @@ function buildChips(){
     var b = document.createElement('button');
     b.className = 'chip saved';
     b.type = 'button';
+    b.dataset.combo = s.id;
     b.setAttribute('aria-label', s.name + ' 저장한 조합');
     b.innerHTML = '<span class="chip-thumb"><span class="ph">MY</span></span>' +
                   '<span class="chip-kr"><b>MY' + (idx+1) + '</b>' + s.name + '</span>' +
@@ -1245,6 +1258,13 @@ function applyPreset(key){
   syncAllSliders();
   requestPaint('full');
   saveLast();
+  scrollChipIntoView(key);
+}
+
+function scrollChipIntoView(key){
+  var chip = el.presetRow.querySelector('.chip[data-key="' + key + '"]');
+  if (!chip || !chip.scrollIntoView) return;
+  try { chip.scrollIntoView({ block:'nearest', inline:'center', behavior:'smooth' }); } catch(e){}
 }
 
 function applySaved(s){
@@ -1254,6 +1274,8 @@ function applySaved(s){
   syncAllSliders();
   requestPaint('full');
   saveLast();
+  var chip = el.presetRow.querySelector('.chip[data-combo="' + s.id + '"]');
+  if (chip && chip.scrollIntoView){ try { chip.scrollIntoView({ block:'nearest', inline:'center', behavior:'smooth' }); } catch(e){} }
   toast(s.name + ' 조합을 적용했어요');
 }
 
