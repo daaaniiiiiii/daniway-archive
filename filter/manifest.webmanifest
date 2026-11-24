@@ -1,0 +1,18 @@
+{
+  "name": "DANI WAY FILTER",
+  "short_name": "FILTER",
+  "description": "다니웨이 블로그 사진 보정 — 네 가지 필름 프리셋, 질감, 상세 조절",
+  "id": "/filter/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF9F6",
+  "theme_color": "#FBF9F6",
+  "lang": "ko",
+  "icons": [
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
