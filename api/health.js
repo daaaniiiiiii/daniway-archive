@@ -28,7 +28,7 @@ module.exports = lib.handle(['GET'], async function (req, res) {
 
   return {
     service: 'daniway-archive',
-    version: '3.0',
+    version: '3.1',
     pageId: pageId,
     pageIdFallback: lib.usesDefaultParentPage(),
     databaseId: db.id,
