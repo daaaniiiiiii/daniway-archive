@@ -692,11 +692,16 @@ function addBloom(canvas, ctx, o){
 }
 
 /* ---------- main render ---------- */
+function dimsOf(src){
+  return { w: src.naturalWidth || src.width || 0, h: src.naturalHeight || src.height || 0 };
+}
+
 function renderInto(canvas, src, presetKey, adj, maxSide, opts){
   opts = opts || {};
   var preset = presetOf(presetKey);
   var look = preset.look;
-  var sw = src.width, sh = src.height, sx = 0, sy = 0, ssw = sw, ssh = sh, cw, ch;
+  var dm = dimsOf(src);
+  var sw = dm.w, sh = dm.h, sx = 0, sy = 0, ssw = sw, ssh = sh, cw, ch;
 
   if (opts.square){
     var m = Math.min(sw, sh);
@@ -1348,7 +1353,10 @@ function handleFiles(files){
   });
 
   Promise.all(jobs).then(function(imgs){
-    state.images.forEach(function(im){ if (im.url) URL.revokeObjectURL(im.url); });
+    state.images.forEach(function(im){
+      if (im.bitmap && im.bitmap.close) { try { im.bitmap.close(); } catch(e){} }
+      if (im.url) URL.revokeObjectURL(im.url);
+    });
     state.images = imgs;
     state.index = 0;
     el.veil.hidden = true;
@@ -1391,8 +1399,9 @@ function buildStrip(){
     c.width = 60; c.height = 60;
     var cx = c.getContext('2d');
     var src = im.bitmap || im.el;
-    var m = Math.min(src.width, src.height);
-    cx.drawImage(src, (src.width-m)/2, (src.height-m)/2, m, m, 0, 0, 60, 60);
+    var dm2 = dimsOf(src);
+    var m = Math.min(dm2.w, dm2.h);
+    cx.drawImage(src, (dm2.w-m)/2, (dm2.h-m)/2, m, m, 0, 0, 60, 60);
     b.appendChild(c);
     b.addEventListener('click', function(){
       state.index = i;
@@ -1473,7 +1482,8 @@ function doSave(){
     try {
       var full = document.createElement('canvas');
       var src = img.bitmap || img.el;
-      var longSide = Math.max(src.width, src.height);
+      var dm3 = dimsOf(src);
+      var longSide = Math.max(dm3.w, dm3.h);
       var gs = Math.max(1, Math.min(SAVE_MAX, longSide) / PREVIEW_MAX);
       renderInto(full, src, state.preset, state.adj, SAVE_MAX, { grainScale: gs });
       toBlob(full).then(function(blob){
@@ -1588,6 +1598,11 @@ el.sheet.addEventListener('click', function(e){ if (e.target === el.sheet) el.sh
 
 document.addEventListener('keydown', function(e){
   if (e.key === 'Escape'){ el.sheet.hidden = true; }
+});
+
+/* iOS can drop canvas contents while the page is in the background */
+document.addEventListener('visibilitychange', function(){
+  if (!document.hidden && currentImage()) requestPaint('full');
 });
 
 /* keep the photo fitted to the stage whenever the stage changes size */
