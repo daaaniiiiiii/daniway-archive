@@ -124,20 +124,21 @@ function buildProperties(input) {
     });
   }
 
-  const created = input.createdAt ? new Date(input.createdAt) : new Date();
-  const createdAt = isNaN(created.getTime()) ? new Date().toISOString() : created.toISOString();
+  const created = lib.parseCreatedAt(input.createdAt);
+  const createdAt = created.toISOString();
 
   const properties = {
     Title: {
       title: [{ type: 'text', text: { content: (title || firstLine || '기록').slice(0, 2000) } }]
     },
-    '작성일': { date: { start: createdAt } }
+    // 노션에서는 한국시간으로 보이도록 +09:00 오프셋을 붙여 저장한다
+    '작성일': { date: { start: lib.kstIsoString(created) } }
   };
   if (tags.length) properties['태그'] = { multi_select: tags.map(function (name) { return { name: name }; }) };
   const link = lib.cleanText(input.link, 2000).trim();
   if (/^https?:\/\//i.test(link)) properties['링크'] = { url: link };
 
-  return { properties: properties, createdAt: createdAt, title: title, body: body };
+  return { properties: properties, createdAt: createdAt, created: created, title: title, body: body, tags: tags, link: link };
 }
 
 async function create(req, res) {
@@ -164,16 +165,23 @@ async function create(req, res) {
     });
   }
 
-  const blocks = lib.paragraphBlocks(built.body);
-  const images = uploadIds.map(function (id) { return lib.imageBlock(id); })
-    .concat(imageUrls.map(function (url) { return lib.imageBlock({ url: url }); }))
-    .filter(Boolean);
-  const bookmark = lib.bookmarkBlock(input.link);
-  if (bookmark) blocks.push(bookmark);
-  images.forEach(function (block) { blocks.push(block); });
+  const uploadSpecs = uploadIds.map(function (id) { return { fileUploadId: id }; });
+  const urlSpecs = imageUrls.map(function (url) { return { url: url }; });
+  const buildBatch = function (specs) {
+    return lib.noteBlocks({
+      createdAt: built.created,
+      tags: built.tags,
+      body: built.body,
+      link: built.link,
+      photos: specs
+    });
+  };
+
+  let specs = uploadSpecs.concat(urlSpecs);
+  let blocks = buildBatch(specs);
 
   const properties = Object.assign({}, built.properties);
-  properties['사진수'] = { number: images.length };
+  properties['사진수'] = { number: specs.length };
 
   const firstBatch = blocks.slice(0, 100);
 
@@ -195,13 +203,11 @@ async function create(req, res) {
     createdCount = firstBatch.length;
   } catch (err) {
     // 외부 이미지 URL이 만료된 경우: 글·태그·업로드된 사진만으로 한 번 더 시도한다
-    if (imageUrls.length && err && /image|url|external/i.test(String(err.message || ''))) {
+    if (urlSpecs.length && err && /image|url|external/i.test(String(err.message || ''))) {
       console.warn('[daniway] retry without external images', err.message);
-      for (let i = blocks.length - 1; i >= 0; i--) {
-        const block = blocks[i];
-        if (block.type === 'image' && block.image && block.image.type === 'external') blocks.splice(i, 1);
-      }
-      properties['사진수'] = { number: uploadIds.length };
+      specs = uploadSpecs;
+      blocks = buildBatch(specs);
+      properties['사진수'] = { number: specs.length };
       const retryBatch = blocks.slice(0, 100);
       page = await requestPage(retryBatch);
       createdCount = retryBatch.length;
@@ -226,9 +232,9 @@ async function create(req, res) {
       id: lib.normalizeId(page.id),
       title: built.title || lib.plainText((properties.Title.title || [])),
       body: built.body,
-      tags: (properties['태그'] ? properties['태그'].multi_select.map(function (t) { return t.name; }) : []),
+      tags: built.tags,
       createdAt: built.createdAt,
-      images: images.length,
+      images: specs.length,
       notionUrl: page.url || ''
     }
   };

@@ -346,6 +346,17 @@ function fileUrlOf(block) {
   return '';
 }
 
+// 2열 column_list 안까지 문서 순서대로 훑는다 (사진 그리드 복원용)
+function walkBlocks(blocks, visitor, depth) {
+  (blocks || []).forEach(function (block) {
+    if (!block) return;
+    visitor(block);
+    if (depth < 3 && Array.isArray(block.children) && block.children.length) {
+      walkBlocks(block.children, visitor, depth + 1);
+    }
+  });
+}
+
 function entryFromPage(page, blocks) {
   const title = pageTitleOf(page);
   const tags = propertyTags(page.properties);
@@ -354,30 +365,45 @@ function entryFromPage(page, blocks) {
   const paragraphs = [];
   const photos = [];
 
-  (blocks || []).forEach(function (block) {
-    if (!block) return;
+  walkBlocks(blocks, function (block) {
+    // 앱이 자동으로 넣은 상단 메타 callout / 구분선은 본문이 아니므로 건너뛴다
+    if (isMetaBlock(block)) return;
+    if (block.type === 'divider') return; // 구분선은 글자가 없으니 본문 복원에서 제외
+    if (block.type === 'column_list' || block.type === 'column') return;
     if (block.type === 'paragraph') {
       const text = plainText(block.paragraph && block.paragraph.rich_text);
-      if (text.trim()) paragraphs.push(text);
+      if (text.trim()) {
+        paragraphs.push(text);
+      }
     } else if (block.type === 'heading_1' || block.type === 'heading_2' || block.type === 'heading_3') {
       const text = plainText(block[block.type] && block[block.type].rich_text);
-      if (text.trim()) paragraphs.push(text);
+      if (text.trim()) {
+        paragraphs.push(text);
+      }
     } else if (block.type === 'quote') {
       const text = plainText(block.quote && block.quote.rich_text);
-      if (text.trim()) paragraphs.push(text);
+      if (text.trim()) {
+        paragraphs.push(text);
+      }
     } else if (block.type === 'bookmark') {
       const url = block.bookmark && block.bookmark.url;
-      if (url) paragraphs.push(url);
+      if (url) {
+        paragraphs.push(url);
+      }
     } else if (block.type === 'image') {
       const url = fileUrlOf(block);
-      if (url) photos.push(url);
+      if (url) {
+        photos.push(url);
+      }
     } else if (block.type === 'file') {
       const file = block.file || {};
       const url = (file.type === 'file' && file.file && file.file.url) ||
         (file.type === 'external' && file.external && file.external.url) || '';
-      if (url) photos.push(url);
+      if (url) {
+        photos.push(url);
+      }
     }
-  });
+  }, 0);
 
   let body = paragraphs.join('\n');
   if (link && body.indexOf(link) < 0) {
@@ -398,8 +424,27 @@ function entryFromPage(page, blocks) {
   };
 }
 
+function hasColumnChildren(block) {
+  return !!block && (block.type === 'column_list' || block.type === 'column');
+}
+
+// 페이지 블록을 읽으면서 column_list / column 안쪽 블록까지 children 에 채워 넣는다
+async function loadBlockTree(blockId, depth) {
+  const blocks = await listBlockChildren(blockId);
+  if (depth >= 3) return blocks;
+  await Promise.all(blocks.map(async function (block) {
+    if (!hasColumnChildren(block)) return;
+    try {
+      block.children = await loadBlockTree(block.id, depth + 1);
+    } catch (err) {
+      block.children = [];
+    }
+  }));
+  return blocks;
+}
+
 async function pageBlocks(pageId) {
-  return listBlockChildren(normalizeId(pageId));
+  return loadBlockTree(normalizeId(pageId), 0);
 }
 
 /* ---------- write helpers ---------- */
@@ -461,6 +506,132 @@ function imageBlock(spec) {
 function bookmarkBlock(url) {
   if (!url || !/^https?:\/\//i.test(url)) return null;
   return { object: 'block', type: 'bookmark', bookmark: { url: url } };
+}
+
+/* ---------- Korean time ---------- */
+
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+function pad2(value) {
+  return (value < 10 ? '0' : '') + value;
+}
+
+// 어떤 시각이든 한국시간 기준의 Date(UTC 필드를 한국시간으로 읽는 값)로 옮긴다
+function kstDate(date) {
+  const parsed = date instanceof Date ? date : new Date(date);
+  const ms = isNaN(parsed.getTime()) ? Date.now() : parsed.getTime();
+  return new Date(ms + KST_OFFSET_MS);
+}
+
+// 노션 `작성일` 속성용: 한국시간 오프셋(+09:00)을 붙인 ISO 문자열
+function kstIsoString(date) {
+  return kstDate(date).toISOString().slice(0, 19) + '+09:00';
+}
+
+// 작성일시가 시간대 없이 들어오면 한국시간으로 해석한다
+function parseCreatedAt(value) {
+  if (value instanceof Date) return isNaN(value.getTime()) ? new Date() : value;
+  if (typeof value === 'number') {
+    const fromNumber = new Date(value);
+    return isNaN(fromNumber.getTime()) ? new Date() : fromNumber;
+  }
+  const raw = String(value === undefined || value === null ? '' : value).trim();
+  if (!raw) return new Date();
+  let iso = raw.replace(/\s+/, 'T');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) iso = iso + 'T00:00:00+09:00';
+  else if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(iso)) iso = iso + '+09:00';
+  const parsed = new Date(iso);
+  if (!isNaN(parsed.getTime())) return parsed;
+  const fallback = new Date(raw);
+  return isNaN(fallback.getTime()) ? new Date() : fallback;
+}
+
+function metaStamp(date) {
+  const shifted = kstDate(date);
+  return shifted.getUTCFullYear() + '.' + pad2(shifted.getUTCMonth() + 1) + '.' + pad2(shifted.getUTCDate()) +
+    ' · ' + pad2(shifted.getUTCHours()) + ':' + pad2(shifted.getUTCMinutes());
+}
+
+/* ---------- page layout ---------- */
+
+const META_ICON = '🗒️';
+const META_STAMP_RE = /^\d{4}\.\d{2}\.\d{2} · \d{2}:\d{2}$/;
+
+// 페이지 맨 위 메타 헤더: 작성일시(굵게) + 태그(회색) 한 덩어리
+function metaBlocks(opts) {
+  opts = opts || {};
+  const tags = Array.isArray(opts.tags) ? opts.tags : [];
+  const rich = [{ type: 'text', text: { content: metaStamp(opts.createdAt) }, annotations: { bold: true } }];
+  if (tags.length) {
+    rich.push({ type: 'text', text: { content: '\n' } });
+    rich.push({
+      type: 'text',
+      text: { content: tags.map(function (tag) { return '#' + String(tag || '').trim(); }).join(' ') },
+      annotations: { color: 'gray' }
+    });
+  }
+  return [
+    {
+      object: 'block',
+      type: 'callout',
+      callout: {
+        rich_text: rich,
+        icon: { type: 'emoji', emoji: META_ICON },
+        color: 'gray_background'
+      }
+    },
+    { object: 'block', type: 'divider', divider: {} }
+  ];
+}
+
+// 앱이 자동으로 넣은 메타 헤더인지 — 본문 복원 때 중복되지 않도록 걸러 낸다
+function isMetaBlock(block) {
+  if (!block || block.type !== 'callout') return false;
+  const text = plainText(block.callout && block.callout.rich_text).trim();
+  if (!text) return false;
+  const lines = text.split('\n');
+  if (!META_STAMP_RE.test(lines[0].trim())) return false;
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line && line.charAt(0) !== '#') return false;
+  }
+  return true;
+}
+
+function columnListBlock(children) {
+  return {
+    object: 'block',
+    type: 'column_list',
+    column_list: {
+      children: children.map(function (child) {
+        return { object: 'block', type: 'column', column: { children: [child] } };
+      })
+    }
+  };
+}
+
+// 사진 1장은 단독 image, 2장 이상은 두 장씩 2열 그리드로 (홀수 마지막은 단독 image)
+function photoBlocks(specs) {
+  const images = (specs || []).map(imageBlock).filter(Boolean);
+  if (images.length < 2) return images;
+  const out = [];
+  for (let i = 0; i < images.length; i += 2) {
+    const pair = images.slice(i, i + 2);
+    if (pair.length === 1) out.push(pair[0]);
+    else out.push(columnListBlock(pair));
+  }
+  return out;
+}
+
+// 기록 한 건의 페이지 블록: 메타 헤더 → 본문 문단 → 북마크 → 사진 그리드
+function noteBlocks(opts) {
+  opts = opts || {};
+  const blocks = metaBlocks({ createdAt: opts.createdAt, tags: opts.tags });
+  paragraphBlocks(opts.body).forEach(function (block) { blocks.push(block); });
+  const bookmark = bookmarkBlock(opts.link);
+  if (bookmark) blocks.push(bookmark);
+  photoBlocks(opts.photos).forEach(function (block) { blocks.push(block); });
+  return blocks;
 }
 
 async function appendBlocks(pageId, blocks) {
@@ -532,6 +703,13 @@ module.exports = {
   paragraphBlocks,
   imageBlock,
   bookmarkBlock,
+  noteBlocks,
+  metaBlocks,
+  photoBlocks,
+  isMetaBlock,
+  kstIsoString,
+  metaStamp,
+  parseCreatedAt,
   appendBlocks,
   readJsonBody,
   cleanText,
