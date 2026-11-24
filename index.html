@@ -1799,6 +1799,10 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
     state.filterTag = '';
     state.filterDate = null;
     render();
+    if (sync.base !== null) {
+      markLocalForUpload();
+      flushPending();
+    }
     closeSheet($('#sheetMenu'));
     showToast(addedIds.length + '개의 기록을 가져왔어요', 6000, '되돌리기', function(){
       var current = state.entries.slice();
