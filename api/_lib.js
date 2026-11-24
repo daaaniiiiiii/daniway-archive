@@ -12,6 +12,10 @@ const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2022-06-28';
 const DB_TITLE = 'DANI WAY ARCHIVE DB';
 
+// NOTION_PAGE_ID 가 비어 있거나 UUID 형식이 아닐 때(예: ntn_ 토큰이 잘못 들어간 경우)
+// 사용하는 기본 부모 페이지.
+const DEFAULT_PARENT_PAGE_ID = '1ba770d2-ab63-4c15-ae7e-9b85cb87a76d';
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
@@ -105,13 +109,23 @@ function notionToken() {
   return envValue('NOTION_TOKEN');
 }
 
-function parentPageId() {
-  return envValue('NOTION_PAGE_ID').replace(/[\s\u200b]/g, '');
-}
-
 function isUuidLike(value) {
   const id = String(value || '').replace(/-/g, '');
   return /^[0-9a-fA-F]{32}$/.test(id);
+}
+
+function parentPageId() {
+  const value = String(process.env.NOTION_PAGE_ID || '').replace(/[\s\u200b]/g, '');
+  if (isUuidLike(value)) return value;
+  // 잘못된 값이 들어 있어도 앱이 멈추지 않도록 기본 부모 페이지로 동작한다.
+  if (value) {
+    console.warn('[daniway] NOTION_PAGE_ID is not a valid page UUID — using the default parent page');
+  }
+  return DEFAULT_PARENT_PAGE_ID;
+}
+
+function usesDefaultParentPage() {
+  return !isUuidLike(String(process.env.NOTION_PAGE_ID || '').replace(/[\s\u200b]/g, ''));
 }
 
 function normalizeId(value) {
@@ -497,6 +511,8 @@ function cleanText(value, max) {
 module.exports = {
   ApiError,
   DB_TITLE,
+  DEFAULT_PARENT_PAGE_ID,
+  usesDefaultParentPage,
   applyCors,
   send,
   ok,
