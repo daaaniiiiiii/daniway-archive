@@ -967,6 +967,7 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
       pending: !!raw.pending,
       dirty: !!raw.dirty,
       synced: !!raw.synced,
+      sample: !!raw.sample,
       notionUrl: (typeof raw.notionUrl === 'string') ? raw.notionUrl : ''
     };
   }
@@ -1018,11 +1019,11 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
     }
     state.entries = [
       { id: uid(), createdAt: new Date(now.getTime() - 110 * 60000).toISOString(), updatedAt: null, title: 'Saturdays in the cafe',
-        body: '햇살, 커피, 노트.\n이 조합은 언제나 좋다.', tags: ['무드', '카페'], photos: [SAMPLE_IMAGES.cafe] },
+        body: '햇살, 커피, 노트.\n이 조합은 언제나 좋다.', tags: ['무드', '카페'], photos: [SAMPLE_IMAGES.cafe], sample: true },
       { id: uid(), createdAt: at(1, 19, 7), updatedAt: null, title: '책방에서 온 영수증',
-        body: '유자차와 책 한 권.\n기분 좋은 지출.', tags: ['영수증', '서점'], photos: [SAMPLE_IMAGES.receipt] },
+        body: '유자차와 책 한 권.\n기분 좋은 지출.', tags: ['영수증', '서점'], photos: [SAMPLE_IMAGES.receipt], sample: true },
       { id: uid(), createdAt: at(2, 11, 18), updatedAt: null, title: 'A sentence for today',
-        body: '진심은 언제나\n결국 통한다.', tags: ['글감', '문장'], photos: [SAMPLE_IMAGES.book] }
+        body: '진심은 언제나\n결국 통한다.', tags: ['글감', '문장'], photos: [SAMPLE_IMAGES.book], sample: true }
     ];
     state.seededSamples = true;
     persist();
@@ -2873,13 +2874,27 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
       sync.databaseId = res.databaseId || '';
       sync.pageId = res.pageId || '';
       saveSyncSettings({ databaseId: sync.databaseId, pageId: sync.pageId });
-      showToast('노션과 연결됐어요');
+      var queued = markLocalForUpload();
+      showToast(queued ? ('연결됐어요. 기기의 기록 ' + queued + '개를 노션에 올릴게요') : '노션과 연결됐어요', 4200);
       return syncFromCloud();
     }).catch(function(err){
       sync.lastError = (err && err.message) || '';
       setSyncStatus('error', '노션 연결을 확인해 주세요');
       showToast(prettySyncError(err), 5600);
     });
+  }
+
+  function markLocalForUpload(){
+    // 처음 연결할 때 이미 기기에 있던 기록도 노션에 올려 둔다 (예시 기록은 제외)
+    var queued = 0;
+    state.entries.forEach(function(entry){
+      if (entry.synced || entry.pending || entry.dirty || entry.sample) return;
+      if (isRemoteId(entry.id)) return;
+      entry.pending = true;
+      queued++;
+    });
+    if (queued) persist();
+    return queued;
   }
 
   function mergePhotos(remotePhotos, prev){
