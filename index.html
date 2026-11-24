@@ -2914,7 +2914,11 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
     return localList.slice(0, MAX_PHOTOS);
   }
 
-  function applyRemoteNotes(remote){
+  // 서버 /api/notes 한 번에 받을 수 있는 최대치(api/notes.js MAX_NOTES).
+  // 응답이 이보다 적으면 노션 목록을 끝까지 받은 것이므로 기기 사본 정리를 해도 된다.
+  var REMOTE_LIMIT = 50;
+
+  function applyRemoteNotes(remote, complete){
     var localById = {};
     state.entries.forEach(function(entry){ localById[entry.id] = entry; });
     var remoteIds = {};
@@ -2940,6 +2944,9 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
     });
     state.entries.forEach(function(entry){
       if (remoteIds[entry.id]) return;
+      // 노션에서 보관(삭제)된 기록: 기기에 남은 사본은 정리한다
+      // (서버 목록을 끝까지 받았고, 저장이 끝난 노션 기록일 때만 — 저장 대기·기기 기록은 남긴다)
+      if (complete && entry.synced && !entry.pending && !entry.dirty && !entry.sample && isRemoteId(entry.id)) return;
       // 노션 목록에 아직 없는 기기 기록(오프라인 저장·저장 대기)은 그대로 남긴다
       merged.push(entry);
     });
@@ -2953,9 +2960,9 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
     if (sync.busy) return Promise.resolve(false);
     sync.busy = true;
     setSyncStatus('loading');
-    return apiRequest('/api/notes', { timeout: 50000 }).then(function(res){
+    return apiRequest('/api/notes?limit=' + REMOTE_LIMIT, { timeout: 50000 }).then(function(res){
       if (!res || res.ok !== true || !Array.isArray(res.notes)) throw new Error('목록을 읽지 못했어요');
-      applyRemoteNotes(res.notes);
+      applyRemoteNotes(res.notes, res.notes.length < REMOTE_LIMIT);
       sync.databaseId = res.databaseId || sync.databaseId;
       sync.syncedAt = res.syncedAt || new Date().toISOString();
       saveSyncSettings({ databaseId: sync.databaseId, syncedAt: sync.syncedAt });
