@@ -154,8 +154,10 @@ button{font:inherit;color:inherit;background:none;border:0;margin:0;padding:0;cu
   box-shadow:0 12px 34px -22px rgba(44,38,33,.55);
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
 }
-#canvasBefore{opacity:0;transition:opacity .14s linear}
+#canvasBefore{opacity:0;transition:opacity .14s linear;z-index:2}
 .frames.cmp #canvasBefore{opacity:1}
+/* overlays stay above both canvases (the before canvas now sits on top) */
+.badge,.cmp-btn,.strip{z-index:3}
 
 .badge{
   position:absolute;left:22px;top:22px;
@@ -184,11 +186,12 @@ button{font:inherit;color:inherit;background:none;border:0;margin:0;padding:0;cu
 .cmp-btn:active{transform:scale(.94)}
 .cmp-btn.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 
-/* multi-photo strip */
+/* multi-photo strip — kept at the top right so the bottom corners stay
+   free for the logo watermark (left, center and right placements) */
 .strip{
-  position:absolute;left:18px;bottom:16px;
+  position:absolute;right:18px;top:16px;
   display:flex;gap:6px;align-items:center;
-  max-width:calc(100% - 90px);overflow-x:auto;
+  max-width:calc(100% - 196px);overflow-x:auto;
   padding:4px;background:rgba(251,249,246,.86);
   border:1px solid rgba(230,223,212,.9);
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
@@ -324,6 +327,37 @@ button{font:inherit;color:inherit;background:none;border:0;margin:0;padding:0;cu
 .slider input[type=range]:disabled{opacity:.5}
 .row-note{font-size:8.5px;color:var(--faint);letter-spacing:.02em;margin:-1px 0 6px}
 
+
+/* ---------------- logo watermark ---------------- */
+.wm{padding:11px 16px 14px;display:flex;flex-direction:column;gap:12px}
+.wm-line{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:-2px}
+.wm-name{font-size:10.5px;letter-spacing:.02em;color:var(--ink-2)}
+.wm-name em{font-style:normal;font-size:8.5px;letter-spacing:.14em;color:var(--faint);margin-left:6px;text-transform:uppercase}
+.wm-state{font-size:9.5px;letter-spacing:.05em;color:var(--faint);text-align:right}
+.seg{display:flex;border:1px solid var(--line);border-radius:1px}
+.seg button{
+  flex:1 1 0;height:32px;display:flex;align-items:center;justify-content:center;gap:6px;
+  font-size:10.5px;letter-spacing:.06em;color:var(--muted);border-left:1px solid var(--line-soft);
+  transition:background .18s var(--ease),color .18s var(--ease);
+}
+.seg button:first-child{border-left:0}
+.seg button.on{background:var(--ink);color:var(--paper)}
+.seg button:active{opacity:.82}
+.seg .dot{width:7px;height:7px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(44,38,33,.16)}
+.seg .dot.cream{background:#FCF2E6}
+.seg .dot.dark{background:#493C34}
+.wm-pos{display:flex;gap:6px;transition:opacity .22s var(--ease)}
+.wm-pos button{
+  flex:1 1 0;height:28px;border:1px solid var(--line-soft);border-radius:1px;
+  font-size:9.5px;letter-spacing:.04em;color:var(--muted);
+  transition:border-color .18s var(--ease),color .18s var(--ease),background .18s var(--ease);
+}
+.wm-pos button.on{border-color:var(--ink);color:var(--ink)}
+.wm-pos button:active{background:var(--paper-2)}
+.wm-extra{display:flex;flex-direction:column;gap:10px;transition:opacity .22s var(--ease)}
+.wm.off .wm-pos,.wm.off .wm-extra{opacity:.3;pointer-events:none}
+.wm .row{padding:0}
+.wm .row + .row{border-top:0}
 
 /* ---------------- overlays ---------------- */
 .toast{
@@ -463,6 +497,7 @@ button{font:inherit;color:inherit;background:none;border:0;margin:0;padding:0;cu
       <div class="tabs" role="tablist">
         <button class="tab on" id="tabAdjust" role="tab" aria-selected="true">조절</button>
         <button class="tab" id="tabTexture" role="tab" aria-selected="false">질감</button>
+        <button class="tab" id="tabLogo" role="tab" aria-selected="false">로고</button>
       </div>
       <div class="head-actions">
         <button class="mini-btn" id="saveComboBtn" title="지금 조합을 저장">
@@ -933,7 +968,70 @@ function renderInto(canvas, src, presetKey, adj, maxSide, opts){
     }
     ctx.putImageData(gi2, 0, 0);
   }
+
+  /* logo watermark — drawn last, so filters and grain never touch it */
+  if (opts.wm) drawLogo(ctx, cw, ch);
 }
+
+/* ============================================================
+   logo watermark
+   ============================================================ */
+var LOGO_SRC = { cream:'assets/daniway-logo-cream.png', dark:'assets/daniway-logo-dark.png' };
+var logoImgs = {};
+
+function preloadLogos(){
+  ['cream','dark'].forEach(function(t){
+    var im = new Image();
+    im.decoding = 'async';
+    im.onload = function(){ if (state.logo.tone === t && currentImage()) requestPaint('full'); };
+    im.onerror = function(){ console.warn('logo asset failed', t); };
+    im.src = LOGO_SRC[t] + '?v=1';
+    logoImgs[t] = im;
+  });
+}
+
+function drawLogo(ctx, cw, ch){
+  var lg = state.logo;
+  if (!lg || lg.tone === 'none') return;
+  var im = logoImgs[lg.tone];
+  if (!im || !im.naturalWidth) return;
+  var w = cw * (lg.size / 100);
+  var h = w * (im.naturalHeight / im.naturalWidth);
+  var m = Math.min(cw, ch) * 0.05;
+  var x = cw - m - w, y = ch - m - h;
+  if (lg.pos === 'bl') x = m;
+  else if (lg.pos === 'bc') x = (cw - w) / 2;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, lg.opacity / 100));
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(im, x, y, w, h);
+  ctx.restore();
+}
+
+function saveLogo(){
+  try {
+    localStorage.setItem(LS_LOGO, JSON.stringify({
+      tone: state.logo.tone, pos: state.logo.pos,
+      size: state.logo.size, opacity: state.logo.opacity
+    }));
+  } catch(e){}
+}
+
+function readLogo(){
+  try {
+    var raw = localStorage.getItem(LS_LOGO);
+    if (!raw) return;
+    var o = JSON.parse(raw);
+    if (!o) return;
+    if (o.tone === 'cream' || o.tone === 'dark') state.logo.tone = o.tone;
+    if (o.pos === 'bl' || o.pos === 'bc' || o.pos === 'br') state.logo.pos = o.pos;
+    if (typeof o.size === 'number') state.logo.size = Math.max(12, Math.min(60, o.size));
+    if (typeof o.opacity === 'number') state.logo.opacity = Math.max(20, Math.min(100, o.opacity));
+  } catch(e){}
+}
+
+function posKr(p){ return p === 'bl' ? '좌하단' : p === 'bc' ? '하단 중앙' : '우하단'; }
 
 /* ============================================================
    state
@@ -947,11 +1045,13 @@ var state = {
   compareLocked: false,
   pressing: false,
   draft: Object.assign({}, presetOf('sunlit').base),
-  saved: []
+  saved: [],
+  logo: { tone:'none', pos:'br', size:30, opacity:88 }
 };
 
 var LS_SAVED = 'daniway.filter.saved.v1';
 var LS_LAST = 'daniway.filter.last.v1';
+var LS_LOGO = 'daniway.filter.logo.v1';
 
 var el = {
   stage: $('#stage'),
@@ -966,6 +1066,7 @@ var el = {
   panelBody: $('#panelBody'),
   tabAdjust: $('#tabAdjust'),
   tabTexture: $('#tabTexture'),
+  tabLogo: $('#tabLogo'),
   resetBtn: $('#resetBtn'),
   saveComboBtn: $('#saveComboBtn'),
   foldBtn: $('#foldBtn'),
@@ -1016,13 +1117,20 @@ function fitFrames(){
   var by = Math.max(6, Math.round(cr.top - fr.top) + 10);
   el.badge.style.left = bx + 'px';
   el.badge.style.top = by + 'px';
+
+  /* photo strip mirrors the badge on the top right, inside the photo */
+  if (el.strip){
+    el.strip.style.top = by + 'px';
+    el.strip.style.right = Math.max(6, Math.round(fr.right - cr.right) + 10) + 'px';
+    el.strip.style.maxWidth = Math.max(96, Math.round(cw - 150)) + 'px';
+  }
 }
 
 function paint(full){
   var img = currentImage();
   if (!img) return;
   var max = full ? PREVIEW_MAX : DRAG_MAX;
-  renderInto(el.after, img.bitmap || img.el, state.preset, state.adj, max, { fast: !full });
+  renderInto(el.after, img.bitmap || img.el, state.preset, state.adj, max, { fast: !full, wm: true });
   el.before.width = el.after.width;
   el.before.height = el.after.height;
   var bctx = el.before.getContext('2d');
@@ -1163,6 +1271,8 @@ function buildPanel(){
   el.panelBody.innerHTML = '';
   el.panelBody.classList.toggle('roomy', state.tab === 'texture');
   sliderRefs = {};
+  wmRefs = null;
+  if (state.tab === 'logo'){ buildLogoPanel(); return; }
   var list = SLIDERS[state.tab];
   list.forEach(function(def){
     var row = document.createElement('div');
@@ -1206,6 +1316,116 @@ function buildPanel(){
     input.addEventListener('pointerup', function(){ if (input.dataset.dragging){ delete input.dataset.dragging; requestPaint('full'); } });
   });
   syncAllSliders();
+  setPanelEnabled(!!currentImage());
+}
+
+/* ---------- logo / watermark panel ---------- */
+var wmRefs = null;
+
+function wmRowHTML(k, kr, en, min, max, val){
+  var pct = (val - min) / (max - min) * 100;
+  return '<div class="row">' +
+      '<div class="row-head">' +
+        '<span class="row-name">' + kr + '<em>' + en + '</em></span>' +
+        '<span class="row-val" id="wmval-' + k + '">' + val + '%</span>' +
+      '</div>' +
+      '<div class="slider">' +
+        '<div class="sl-track"></div>' +
+        '<div class="sl-fill" id="wmfill-' + k + '" style="left:0;width:' + pct + '%"></div>' +
+        '<input type="range" min="' + min + '" max="' + max + '" step="1" value="' + val + '" id="wm-' + k + '" data-wm="' + k + '" aria-label="' + kr + '">' +
+      '</div>' +
+    '</div>';
+}
+
+function syncLogoUI(){
+  if (!wmRefs) return;
+  var lg = state.logo, i;
+  var t = wmRefs.tone.querySelectorAll('[data-tone]');
+  for (i=0;i<t.length;i++){
+    var on = t[i].getAttribute('data-tone') === lg.tone;
+    t[i].classList.toggle('on', on);
+    t[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  var p = wmRefs.pos.querySelectorAll('[data-pos]');
+  for (i=0;i<p.length;i++){
+    var on2 = p[i].getAttribute('data-pos') === lg.pos;
+    p[i].classList.toggle('on', on2);
+    p[i].setAttribute('aria-pressed', on2 ? 'true' : 'false');
+  }
+  wmRefs.wrap.classList.toggle('off', lg.tone === 'none');
+  wmRefs.state.textContent = lg.tone === 'none' ? '사진 위에 얹지 않아요'
+    : (lg.tone === 'cream' ? '크림' : '다크') + ' · ' + posKr(lg.pos);
+  ['size','opacity'].forEach(function(k){
+    var ref = wmRefs[k], v = lg[k];
+    ref.input.value = v;
+    ref.val.textContent = v + '%';
+    ref.fill.style.width = ((v - ref.min) / (ref.max - ref.min) * 100) + '%';
+  });
+}
+
+function buildLogoPanel(){
+  var lg = state.logo;
+  el.panelBody.innerHTML =
+    '<div class="wm' + (lg.tone === 'none' ? ' off' : '') + '" id="wm">' +
+      '<div class="wm-line">' +
+        '<span class="wm-name">워터마크<em>Logo</em></span>' +
+        '<span class="wm-state" id="wmState"></span>' +
+      '</div>' +
+      '<div class="seg" id="wmTone" role="group" aria-label="로고 색상">' +
+        '<button type="button" data-tone="none">없음</button>' +
+        '<button type="button" data-tone="cream"><i class="dot cream"></i>크림</button>' +
+        '<button type="button" data-tone="dark"><i class="dot dark"></i>다크</button>' +
+      '</div>' +
+      '<div class="wm-pos" id="wmPos" role="group" aria-label="로고 위치">' +
+        '<button type="button" data-pos="bl">좌하단</button>' +
+        '<button type="button" data-pos="bc">하단 중앙</button>' +
+        '<button type="button" data-pos="br">우하단</button>' +
+      '</div>' +
+      '<div class="wm-extra">' +
+        wmRowHTML('size','크기','Size',12,60,Math.round(lg.size)) +
+        wmRowHTML('opacity','투명도','Opacity',20,100,Math.round(lg.opacity)) +
+      '</div>' +
+    '</div>';
+
+  wmRefs = {
+    wrap: $('#wm'),
+    tone: $('#wmTone'),
+    pos: $('#wmPos'),
+    state: $('#wmState'),
+    size: { input: $('#wm-size'), val: $('#wmval-size'), fill: $('#wmfill-size'), min: 12, max: 60 },
+    opacity: { input: $('#wm-opacity'), val: $('#wmval-opacity'), fill: $('#wmfill-opacity'), min: 20, max: 100 }
+  };
+
+  wmRefs.tone.addEventListener('click', function(e){
+    var b = e.target.closest('[data-tone]');
+    if (!b) return;
+    var t = b.getAttribute('data-tone');
+    if (state.logo.tone === t) return;
+    state.logo.tone = t;
+    syncLogoUI();
+    saveLogo();
+    requestPaint('full');
+    if (t !== 'none') toast((t === 'cream' ? '크림' : '다크') + ' 로고를 얹었어요');
+  });
+
+  wmRefs.pos.addEventListener('click', function(e){
+    var b = e.target.closest('[data-pos]');
+    if (!b) return;
+    state.logo.pos = b.getAttribute('data-pos');
+    syncLogoUI();
+    saveLogo();
+    requestPaint('full');
+  });
+
+  ['size','opacity'].forEach(function(k){
+    var ref = wmRefs[k];
+    var apply = function(){ state.logo[k] = Number(ref.input.value); syncLogoUI(); };
+    ref.input.addEventListener('input', function(){ apply(); requestPaint('fast'); });
+    ref.input.addEventListener('change', function(){ apply(); saveLogo(); requestPaint('full'); });
+    ref.input.addEventListener('pointerup', function(){ if (currentImage()) requestPaint('full'); });
+  });
+
+  syncLogoUI();
   setPanelEnabled(!!currentImage());
 }
 
@@ -1507,7 +1727,7 @@ function doSave(){
       var dm3 = dimsOf(src);
       var longSide = Math.max(dm3.w, dm3.h);
       var gs = Math.max(1, Math.min(SAVE_MAX, longSide) / PREVIEW_MAX);
-      renderInto(full, src, state.preset, state.adj, SAVE_MAX, { grainScale: gs });
+      renderInto(full, src, state.preset, state.adj, SAVE_MAX, { grainScale: gs, wm: true });
       toBlob(full).then(function(blob){
         el.veil.hidden = true;
         el.saveBtn.disabled = false;
@@ -1590,18 +1810,22 @@ el.saveComboBtn.addEventListener('click', saveCombo);
 
 el.tabAdjust.addEventListener('click', function(){ switchTab('adjust'); });
 el.tabTexture.addEventListener('click', function(){ switchTab('texture'); });
+el.tabLogo.addEventListener('click', function(){ switchTab('logo'); });
 
 function switchTab(t){
   document.getElementById('app').classList.remove('folded');
   el.foldBtn.setAttribute('aria-expanded', 'true');
   if (state.tab === t) { requestAnimationFrame(function(){ fitFrames(); }); return; }
   state.tab = t;
-  var on = t === 'adjust';
-  el.tabAdjust.classList.toggle('on', on);
-  el.tabAdjust.setAttribute('aria-selected', on ? 'true' : 'false');
-  el.tabTexture.classList.toggle('on', !on);
-  el.tabTexture.setAttribute('aria-selected', !on ? 'true' : 'false');
+  var tabs = { adjust: el.tabAdjust, texture: el.tabTexture, logo: el.tabLogo };
+  for (var k in tabs){
+    if (!tabs.hasOwnProperty(k)) continue;
+    var on = k === t;
+    tabs[k].classList.toggle('on', on);
+    tabs[k].setAttribute('aria-selected', on ? 'true' : 'false');
+  }
   buildPanel();
+  requestAnimationFrame(function(){ fitFrames(); });
 }
 
 el.sheetSave.addEventListener('click', function(){
@@ -1644,6 +1868,8 @@ window.addEventListener('resize', function(){
 /* boot */
 readSaved();
 readLast();
+readLogo();
+preloadLogos();
 buildChips();
 buildPanel();
 setPanelEnabled(false);
