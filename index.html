@@ -214,7 +214,15 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
 .c-photo{
   position:relative;width:40px;height:40px;flex:0 0 auto;border-radius:50%;
   display:inline-flex;align-items:center;justify-content:center;color:#5F5B55;
+  cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
   transition:background .18s var(--ease),color .18s var(--ease);
+}
+/* 사진 선택 input: 화면에는 보이지 않지만 DOM에 그려진 상태로 둔다
+   (iOS 홈 화면 앱에서 display:none input은 선택창이 열리지 않는다) */
+.file-input{
+  position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;
+  opacity:0;overflow:hidden;clip-path:inset(50%);pointer-events:none;
 }
 .c-photo:active{background:#F2EFE9}
 .c-photo.has-photo::after{content:"";position:absolute;top:8px;right:8px;width:5px;height:5px;border-radius:50%;background:#2C2C2C;box-shadow:0 0 0 2px #fff}
@@ -258,7 +266,8 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
 .mp-add{
   width:62px;height:62px;flex:0 0 auto;border-radius:6px;border:1px dashed #D9D4CB;
   background:#FCFBF9;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:3px;color:#8B8680;
+  gap:3px;color:#8B8680;cursor:pointer;-webkit-user-select:none;user-select:none;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
 }
 .mp-add:active{background:#F4F1EB}
 .mp-add-plus{font-size:15px;line-height:1;font-weight:300}
@@ -658,14 +667,14 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
     <div class="suggest" id="suggestTags"></div>
   </div>
   <form class="composer" id="composer" autocomplete="off">
-    <button class="c-photo" id="btnPhoto" type="button" aria-label="사진 첨부, 여러 장 선택할 수 있어요">
+    <label class="c-photo" id="btnPhoto" for="fileInput" role="button" tabindex="0" aria-label="사진 첨부, 여러 장 선택할 수 있어요">
       <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.2" y="4.6" width="17.6" height="14.8" rx="2.4"/><circle cx="8.5" cy="9.5" r="1.4"/><path d="M4.4 17.4 9.9 12l3.4 3.2 2.9-2.6 3.4 3.2"/></svg>
-    </button>
+    </label>
     <textarea id="draftBody" rows="1" maxlength="4000" placeholder="아카이브에 남기기..." aria-label="기록 내용" enterkeyhint="enter"></textarea>
     <button class="c-send" id="btnSend" type="submit" aria-label="저장">
       <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19.2V5.4M12 5.4 5.7 11.7M12 5.4l6.3 6.3"/></svg>
     </button>
-    <input type="file" id="fileInput" accept="image/*" multiple hidden>
+    <input type="file" id="fileInput" class="file-input" accept="image/*" multiple>
   </form>
 </div>
 
@@ -1410,12 +1419,19 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
   }
 
   function makePhotoAddTile(){
-    var b = el('button', 'mp-add');
-    b.type = 'button';
+    var b = el('label', 'mp-add');
+    b.setAttribute('for', 'fileInput');
+    b.setAttribute('role', 'button');
+    b.setAttribute('tabindex', '0');
     b.setAttribute('aria-label', '사진 더 붙이기, 최대 ' + MAX_PHOTOS + '장');
     b.appendChild(el('span', 'mp-add-plus', '+'));
     b.appendChild(el('span', 'mp-add-n', state.draft.photos.length + '/' + MAX_PHOTOS));
-    b.addEventListener('click', openFilePicker);
+    b.addEventListener('keydown', function(ev){
+      if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
+        ev.preventDefault();
+        openFilePicker();
+      }
+    });
     return b;
   }
 
@@ -1825,47 +1841,97 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
     if (input) input.click();
   }
   function drawScaled(img, maxDim, quality){
-    var w = img.naturalWidth || img.width;
-    var h = img.naturalHeight || img.height;
+    var w = img.naturalWidth || img.width || 0;
+    var h = img.naturalHeight || img.height || 0;
     if (!w || !h) throw new Error('size');
     var scale = Math.min(1, maxDim / Math.max(w, h));
     var cw = Math.max(1, Math.round(w * scale));
     var ch = Math.max(1, Math.round(h * scale));
     var canvas = document.createElement('canvas');
-    canvas.width = cw;
-    canvas.height = ch;
-    var ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('canvas');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, cw, ch);
-    ctx.drawImage(img, 0, 0, cw, ch);
-    var out = canvas.toDataURL('image/jpeg', quality);
-    if (!out || out.length < 200) throw new Error('encode');
-    return out;
+    try {
+      canvas.width = cw;
+      canvas.height = ch;
+      var ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('canvas');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.drawImage(img, 0, 0, cw, ch);
+      var out = canvas.toDataURL('image/jpeg', quality);
+      if (!out || out.length < 200) throw new Error('encode');
+      return out;
+    } finally {
+      // 캔버스가 쥐고 있던 메모리를 바로 돌려준다 (큰 사진을 여러 장 담을 때 중요)
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+  }
+  // 사진 파일을 그릴 수 있는 상태로 읽는다.
+  // - 원본을 통째로 base64 문자열로 만들지 않고(메모리 절약) objectURL로 읽는다.
+  // - 브라우저가 열지 못하면 데이터 URL로 한 번 더 시도한다.
+  // - 어떤 경우에도 promise가 끝나지 않아 '사진 담는 중'이 멈추는 일이 없도록 시간 제한을 둔다.
+  function decodePhoto(file){
+    return new Promise(function(resolve, reject){
+      var settled = false;
+      var url = null;
+      var timer = null;
+      function release(){
+        clearTimeout(timer);
+        if (url) { try { URL.revokeObjectURL(url); } catch (e) {} url = null; }
+      }
+      function ok(img){
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ img: img, release: release });
+      }
+      function fail(err){
+        if (settled) return;
+        settled = true;
+        release();
+        reject(err || new Error('decode'));
+      }
+      timer = setTimeout(function(){ fail(new Error('timeout')); }, 25000);
+
+      function viaReader(){
+        var reader = new FileReader();
+        reader.onerror = function(){ fail(new Error('read')); };
+        reader.onload = function(){
+          var img = new Image();
+          img.onload = function(){ ok(img); };
+          img.onerror = function(){ fail(new Error('decode')); };
+          try { img.src = String(reader.result); } catch (e) { fail(new Error('decode')); }
+        };
+        try { reader.readAsDataURL(file); } catch (e) { fail(new Error('read')); }
+      }
+
+      try { url = URL.createObjectURL(file); } catch (e) { url = null; }
+      if (!url) { viaReader(); return; }
+      var img = new Image();
+      img.decoding = 'async';
+      img.onload = function(){ ok(img); };
+      img.onerror = function(){
+        // HEIC처럼 objectURL로 바로 열지 못하는 사진은 데이터 URL로 한 번 더 시도한다
+        if (settled) return;
+        release();
+        viaReader();
+      };
+      try { img.src = url; } catch (e) { release(); viaReader(); }
+    });
   }
   function compressImage(file){
-    return new Promise(function(resolve, reject){
-      var reader = new FileReader();
-      reader.onerror = function(){ reject(new Error('read')); };
-      reader.onload = function(){
-        var img = new Image();
-        img.onerror = function(){ reject(new Error('decode')); };
-        img.onload = function(){
-          try {
-            var steps = [[1200, 0.72], [1000, 0.68], [860, 0.6]];
-            var out = '';
-            for (var i = 0; i < steps.length; i++) {
-              out = drawScaled(img, steps[i][0], steps[i][1]);
-              if (out.length <= PHOTO_MAX_CHARS) break;
-            }
-            resolve(out);
-          } catch (err) {
-            reject(err);
-          }
-        };
-        img.src = String(reader.result);
-      };
-      reader.readAsDataURL(file);
+    return decodePhoto(file).then(function(decoded){
+      var img = decoded.img;
+      try {
+        var steps = [[1200, 0.72], [1000, 0.68], [860, 0.6]];
+        var out = '';
+        for (var i = 0; i < steps.length; i++) {
+          out = drawScaled(img, steps[i][0], steps[i][1]);
+          if (out.length <= PHOTO_MAX_CHARS) break;
+        }
+        return out;
+      } finally {
+        try { decoded.release(); } catch (e) {}
+      }
     });
   }
   function addPhotos(files){
@@ -1889,7 +1955,7 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
     picked = picked.slice(0, room);
     expandComposer();
     setPhotoBusy(true);
-    var failed = 0, added = 0;
+    var failed = 0, added = 0, lastErr = null;
     var chain = Promise.resolve();
     picked.forEach(function(f){
       chain = chain.then(function(){
@@ -1899,17 +1965,23 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
           renderDraft();
           syncSend();
           measureDock();
-        }).catch(function(){ failed++; });
+        }).catch(function(err){ failed++; lastErr = err || null; });
       });
     });
-    chain.then(function(){
+    chain.then(finish, finish);
+    function finish(){
       setPhotoBusy(false);
       if (skipped) {
         showToast('사진은 ' + MAX_PHOTOS + '장까지예요. ' + added + '장을 담았어요', 4200);
       } else if (failed) {
-        showToast(failed + '장은 불러오지 못했어요. 다른 사진으로 시도해 주세요', 4200);
+        var reason = lastErr && lastErr.message;
+        var hint = '';
+        if (reason === 'timeout' || reason === 'decode' || reason === 'read') {
+          hint = ' 아이폰 사진이 iCloud에서 내려오는 중이거나 HEIC 원본이면 잠시 뒤 다시 시도해 주세요.';
+        }
+        showToast(failed + '장은 불러오지 못했어요.' + hint, 5600);
       }
-    });
+    }
   }
 
   /* ---------- gallery ---------- */
@@ -2538,7 +2610,18 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
     });
 
     $('#btnCancelEdit').addEventListener('click', cancelEdit);
-    $('#btnPhoto').addEventListener('click', openFilePicker);
+    // #btnPhoto 는 <label for="fileInput"> 다 — 아이폰(홈 화면 앱 포함)에서
+    // 탭 한 번에 네이티브 사진 선택창이 열리도록 브라우저가 직접 처리한다.
+    // 키보드(Enter/Space)로도 열 수 있게만 보강한다.
+    var photoBtn = $('#btnPhoto');
+    if (photoBtn) {
+      photoBtn.addEventListener('keydown', function(ev){
+        if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
+          ev.preventDefault();
+          openFilePicker();
+        }
+      });
+    }
     $('#fileInput').addEventListener('change', function(){
       var files = this.files ? Array.prototype.slice.call(this.files) : [];
       this.value = '';
@@ -2998,8 +3081,8 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
         if (!res || res.ok !== true || !res.file_upload_id) throw new Error('사진을 올리지 못했어요');
         return res.file_upload_id;
       }).catch(function(err){
-        if (tryNo < 2) {
-          return new Promise(function(resolve){ setTimeout(resolve, 900); }).then(function(){ return attempt(tryNo + 1); });
+        if (tryNo < 3) {
+          return new Promise(function(resolve){ setTimeout(resolve, 700 * tryNo); }).then(function(){ return attempt(tryNo + 1); });
         }
         throw err;
       });
