@@ -3147,9 +3147,12 @@ mark{background:#F1E7CD;color:inherit;border-radius:2px;padding:0 1px}
       render();
       sync.syncedAt = new Date().toISOString();
       saveSyncSettings({ syncedAt: sync.syncedAt });
-      setSyncStatus('saved');
       if (failedPhotos) {
-        showToast('사진 ' + failedPhotos + '장은 노션에 못 올렸어요. 기기에는 그대로 있어요.', 4600);
+        // 사진이 노션에 못 올라간 경우: 저장은 됐지만 사진은 기기에만 있다는 걸 상태줄에도 남긴다
+        setSyncStatus('error', '사진 ' + failedPhotos + '장은 노션에 못 올렸어요 · 기기에 저장됨');
+        showToast('사진 ' + failedPhotos + '장은 노션에 못 올렸어요. 기기에는 그대로 있어요.', 5200);
+      } else {
+        setSyncStatus('saved');
       }
       return current;
     }).catch(function(err){
