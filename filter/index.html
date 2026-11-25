@@ -978,6 +978,8 @@ function renderInto(canvas, src, presetKey, adj, maxSide, opts){
    ============================================================ */
 var LOGO_SRC = { cream:'assets/daniway-logo-cream.png', dark:'assets/daniway-logo-dark.png' };
 var logoImgs = {};
+/* watermark size scale (% of the photo width). 30 was the old default and felt big. */
+var LOGO_MIN = 6, LOGO_MAX = 40, LOGO_DEF = 16, LOGO_OLD_DEF = 30;
 
 function preloadLogos(){
   ['cream','dark'].forEach(function(t){
@@ -1018,16 +1020,34 @@ function saveLogo(){
   } catch(e){}
 }
 
+function applyLogoPrefs(o, migrating){
+  if (!o) return;
+  if (o.tone === 'cream' || o.tone === 'dark') state.logo.tone = o.tone;
+  if (o.pos === 'bl' || o.pos === 'bc' || o.pos === 'br') state.logo.pos = o.pos;
+  if (typeof o.size === 'number' && isFinite(o.size)){
+    var s = Math.round(o.size);
+    /* moving from v1: a saved 30 is just the old default → drop to the new default */
+    state.logo.size = (migrating && s === LOGO_OLD_DEF)
+      ? LOGO_DEF
+      : Math.max(LOGO_MIN, Math.min(LOGO_MAX, s));
+  }
+  if (typeof o.opacity === 'number' && isFinite(o.opacity)){
+    state.logo.opacity = Math.max(20, Math.min(100, o.opacity));
+  }
+}
+
 function readLogo(){
   try {
     var raw = localStorage.getItem(LS_LOGO);
-    if (!raw) return;
-    var o = JSON.parse(raw);
-    if (!o) return;
-    if (o.tone === 'cream' || o.tone === 'dark') state.logo.tone = o.tone;
-    if (o.pos === 'bl' || o.pos === 'bc' || o.pos === 'br') state.logo.pos = o.pos;
-    if (typeof o.size === 'number') state.logo.size = Math.max(12, Math.min(60, o.size));
-    if (typeof o.opacity === 'number') state.logo.opacity = Math.max(20, Math.min(100, o.opacity));
+    if (raw){
+      applyLogoPrefs(JSON.parse(raw), false);
+      return;
+    }
+    /* first run after the smaller scale — carry over tone/pos/opacity from v1 */
+    var old = localStorage.getItem(LS_LOGO_V1);
+    if (!old) return;
+    applyLogoPrefs(JSON.parse(old), true);
+    saveLogo();
   } catch(e){}
 }
 
@@ -1046,12 +1066,13 @@ var state = {
   pressing: false,
   draft: Object.assign({}, presetOf('sunlit').base),
   saved: [],
-  logo: { tone:'none', pos:'br', size:30, opacity:88 }
+  logo: { tone:'none', pos:'br', size:LOGO_DEF, opacity:88 }
 };
 
 var LS_SAVED = 'daniway.filter.saved.v1';
 var LS_LAST = 'daniway.filter.last.v1';
-var LS_LOGO = 'daniway.filter.logo.v1';
+var LS_LOGO = 'daniway.filter.logo.v2';
+var LS_LOGO_V1 = 'daniway.filter.logo.v1';
 
 var el = {
   stage: $('#stage'),
@@ -1382,7 +1403,7 @@ function buildLogoPanel(){
         '<button type="button" data-pos="br">우하단</button>' +
       '</div>' +
       '<div class="wm-extra">' +
-        wmRowHTML('size','크기','Size',12,60,Math.round(lg.size)) +
+        wmRowHTML('size','크기','Size',LOGO_MIN,LOGO_MAX,Math.round(lg.size)) +
         wmRowHTML('opacity','투명도','Opacity',20,100,Math.round(lg.opacity)) +
       '</div>' +
     '</div>';
@@ -1392,7 +1413,7 @@ function buildLogoPanel(){
     tone: $('#wmTone'),
     pos: $('#wmPos'),
     state: $('#wmState'),
-    size: { input: $('#wm-size'), val: $('#wmval-size'), fill: $('#wmfill-size'), min: 12, max: 60 },
+    size: { input: $('#wm-size'), val: $('#wmval-size'), fill: $('#wmfill-size'), min: LOGO_MIN, max: LOGO_MAX },
     opacity: { input: $('#wm-opacity'), val: $('#wmval-opacity'), fill: $('#wmfill-opacity'), min: 20, max: 100 }
   };
 
